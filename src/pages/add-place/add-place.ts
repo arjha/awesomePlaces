@@ -1,13 +1,17 @@
 import { Component } from '@angular/core';
-import { IonicPage, NavController, NavParams, ModalController, LoadingController, ToastController } from 'ionic-angular';
+import { IonicPage, NavController, NavParams, ModalController, LoadingController, ToastController, normalizeURL, AlertController } from 'ionic-angular';
 import { NgForm } from '@angular/forms';
 import { SetLocationPage } from '../set-location/set-location';
 import { Location } from '../../models/location';
 import { Geolocation } from '@ionic-native/geolocation';
 import { Camera, CameraOptions } from '@ionic-native/camera';
-import { File } from '@ionic-native/file';
-import { PlacesService } from '../../services/places.service';
+import { File, Entry, FileError } from '@ionic-native/file';
+import { BarcodeScanner } from '@ionic-native/barcode-scanner';
 
+import { PlacesService } from '../../services/places.service';
+import { Scan } from '../../models/scan';
+
+declare var cordova: any;
 
 @IonicPage({
   priority: "low"
@@ -23,11 +27,17 @@ export class AddPlacePage {
   };
   locationIsSet: boolean = false;
   imageURL: string = '';
+  scanData: Scan = {
+    format: '',
+    text: ''
+  };
+  barcodeStatus: boolean = false;
 
   constructor(public navCtrl: NavController, public navParams: NavParams,
     private modalCntrl: ModalController, private gLocation: Geolocation,
     private loadingCntrl: LoadingController, private toastCntrl: ToastController,
-    private camera: Camera, private placeServices: PlacesService, private file:File) {
+    private camera: Camera, private placeServices: PlacesService, private file: File,
+    private alertCntrl: AlertController, private barcode: BarcodeScanner) {
   }
 
   ionViewDidLoad() {
@@ -36,7 +46,7 @@ export class AddPlacePage {
 
   onSubmit(form: NgForm) {
     this.placeServices.addPlace(form.value.title, form.value.description,
-      this.location, this.imageURL);
+      this.location, this.imageURL, this.scanData);
     form.reset();
     this.location = {
       lat: 22.5726,
@@ -101,16 +111,61 @@ export class AddPlacePage {
 
   openCamera() {
     const options: CameraOptions = {
-      quality: 100,
-      destinationType: this.camera.DestinationType.DATA_URL,
-      encodingType: this.camera.EncodingType.JPEG,
-      mediaType: this.camera.MediaType.PICTURE,
-      correctOrientation: true
+      quality: 90,
+      allowEdit: true,
+      correctOrientation: false,
     }
     this.camera.getPicture(options).then((imageData) => {
-      this.imageURL = 'data:image/jpeg;base64,' + imageData;
+      const currentName = imageData.replace(/^.*[\\\/]/, '');
+      const path = imageData.replace(/[^\/]*$/, '');;
+      let d = new Date(),
+        n = d.getTime(),
+        newFileName = n + ".jpg";
+
+      this.file.moveFile(path, currentName, cordova.file.dataDirectory, newFileName)
+        .then(
+          (data: Entry) => {
+            this.imageURL = data.nativeURL;
+            this.camera.cleanup();
+
+          }
+        )
+        .catch(
+          (err: FileError) => {
+            this.imageURL = '';
+            const toast = this.toastCntrl.create({
+              message: err.message,
+              duration: 2500
+            });
+            toast.present();
+            this.camera.cleanup();
+          }
+        );
+      this.imageURL = imageData;
     }, (err) => {
-      console.error(err)
+      const toast = this.toastCntrl.create({
+        message: 'Some error occoured---other',
+        duration: 2500
+      });
+      toast.present();
+    });
+
+
+  }
+
+  scanCode() {
+    this.barcode.scan({
+      prompt: "Scan your QR/Barcode",
+      showTorchButton: true,
+      disableSuccessBeep: false
+    }).then((barcodeData) => {
+
+      this.scanData.format = barcodeData.format;
+      this.scanData.text = barcodeData.text;
+      this.barcodeStatus = barcodeData.cancelled;
+
+    }, (err) => {
+      console.log("ERROR -> " + JSON.stringify(err));
     });
   }
 }

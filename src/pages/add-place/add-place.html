@@ -58,7 +58,25 @@
       </ion-row>
       <ion-row>
         <ion-col>
-          <button ion-button color="secondary" block type="submit" [disabled]="!f.valid || !locationIsSet">
+          <h5>Scan QR/ Bar code</h5>
+        </ion-col>
+      </ion-row>
+      <ion-row>
+        <ion-col>
+          <button ion-button block outline color="light" type="button" icon-left (click)="scanCode()">
+            <ion-icon name="barcode"></ion-icon>Scan QR/ Bar Code
+          </button>
+        </ion-col>
+      </ion-row>
+      <ion-row *ngIf="scanData.text!==''">
+          <ion-col>
+              <p>Format: {{scanData.format}}</p>
+              <p>Text: {{scanData.text}}</p>
+          </ion-col>
+        </ion-row>
+      <ion-row>
+        <ion-col>
+          <button ion-button color="secondary" block type="submit" [disabled]="!f.valid || !locationIsSet || imageUrl == ''">
             Add this Place
           </button>
         </ion-col>
